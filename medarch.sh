@@ -274,6 +274,7 @@ main() {
   local count=0
   local copied=0
   local skipped=0
+  local errors=0
   
   # Process files
   while IFS= read -r -d '' file; do
@@ -312,16 +313,16 @@ main() {
     # Check for duplicates if requested
     if [[ $SKIP_DUPLICATES -eq 1 && -e "$dest_file" ]]; then
       local src_size
-      src_size=$(stat -c %s -- "$file")
+      src_size=$(stat -c %s -- "$file" || echo 0)
       local dst_size
-      dst_size=$(stat -c %s -- "$dest_file")
+      dst_size=$(stat -c %s -- "$dest_file" || echo 0)
       
-      if [[ "$src_size" -eq "$dst_size" ]]; then
+      if [[ "$src_size" -eq "$dst_size" && "$src_size" -gt 0 ]]; then
         skipped=$((skipped + 1))
         if [[ $VERBOSE -eq 1 ]]; then
            log_info "Skipping duplicate: $base_name"
         else
-           printf "\rProcessed %d/%d (copied: %d, skipped: %d)" "$count" "$total_files" "$copied" "$skipped"
+           printf "\rProcessed %d/%d (copied: %d, skipped: %d, errors: %d)" "$count" "$total_files" "$copied" "$skipped" "$errors"
         fi
         continue
       fi
@@ -350,11 +351,12 @@ main() {
         copied=$((copied + 1))
       else
         log_error "Failed to copy '$file'"
+        errors=$((errors + 1))
       fi
     fi
     
     if [[ $VERBOSE -eq 0 ]]; then
-      printf "\rProcessed %d/%d (copied: %d, skipped: %d)" "$count" "$total_files" "$copied" "$skipped"
+      printf "\rProcessed %d/%d (copied: %d, skipped: %d, errors: %d)" "$count" "$total_files" "$copied" "$skipped" "$errors"
     fi
 
   done < <("${file_list_cmd[@]}" -print0)
@@ -365,9 +367,10 @@ main() {
 
   echo "---------------------------------------------------"
   log_success "Operation completed."
-  echo "Total found:   $total_files"
-  echo "Copied:        $copied"
-  echo "Skipped:       $skipped"
+  echo "Total found:         $total_files"
+  echo "Copied:              $copied"
+  echo "Skipped (Duplicate): $skipped"
+  echo "Errors:              $errors"
 }
 
 main "$@"
