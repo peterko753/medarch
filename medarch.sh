@@ -31,13 +31,16 @@ DRY_RUN=0
 VERBOSE=0
 MIN_SIZE=""
 MAX_SIZE=""
+INCLUDE_PHOTO=1
+INCLUDE_VIDEO=1
+INCLUDE_AUDIO=1
 
 # Supported Extensions
-EXTENSIONS=(
-  "jpg" "jpeg" "png" "gif" "bmp" "tiff" "webp" "heic"
-  "mp3" "flac" "wav" "aac" "ogg" "m4a" "wma"
-  "mp4" "mkv" "avi" "mov" "wmv" "flv" "webm" "mpeg" "mpg"
-)
+EXT_PHOTO=( "jpg" "jpeg" "png" "gif" "bmp" "tiff" "webp" "heic" )
+EXT_AUDIO=( "mp3" "flac" "wav" "aac" "ogg" "m4a" "wma" )
+EXT_VIDEO=( "mp4" "mkv" "avi" "mov" "wmv" "flv" "webm" "mpeg" "mpg" )
+
+EXTENSIONS=()
 
 # -----------------------------------------------------------------------------
 # Helper Functions
@@ -51,6 +54,7 @@ Archives media files from source_dir to destination_dir.
 
 Options:
   -s, --skip-duplicates  Skip files if a file with the same name and size exists in destination.
+  -e, --exclude-type TYPE Exclude specific media type (photo, video, sound). Can be used multiple times.
   -m, --min-size SIZE    Only archive files larger than SIZE. (e.g., 10M, 500k)
   -M, --max-size SIZE    Only archive files smaller than SIZE. (e.g., 1G)
   -n, --dry-run          Show what would be done without actually copying files.
@@ -61,6 +65,7 @@ Options:
 Examples:
   $APP_NAME /path/to/camera /path/to/archive
   $APP_NAME --min-size 1M --skip-duplicates ~/Downloads ~/Media
+  $APP_NAME --exclude-type video ~/Source ~/Destination
 EOF
 }
 
@@ -94,6 +99,24 @@ main() {
       -s|--skip-duplicates)
         SKIP_DUPLICATES=1
         shift
+        ;;
+      -e|--exclude-type)
+        if [[ -n "${2:-}" && ${2:0:1} != "-" ]]; then
+          case "$2" in
+            photo|image) INCLUDE_PHOTO=0 ;;
+            video|movie) INCLUDE_VIDEO=0 ;;
+            sound|audio) INCLUDE_AUDIO=0 ;;
+            *)
+              log_error "Unknown type to exclude: $2. Use 'photo', 'video', or 'sound'."
+              exit 1
+              ;;
+          esac
+          shift 2
+        else
+          log_error "Error: Argument for $1 is missing."
+          usage
+          exit 1
+        fi
         ;;
       -m|--min-size)
         if [[ -n "${2:-}" && ${2:0:1} != "-" ]]; then
@@ -160,6 +183,22 @@ main() {
 
   if [[ ! -d "$src_dir" ]]; then
     log_error "Source directory does not exist: $src_dir"
+    exit 1
+  fi
+
+  # Build extensions list
+  if [[ $INCLUDE_PHOTO -eq 1 ]]; then
+    EXTENSIONS+=("${EXT_PHOTO[@]}")
+  fi
+  if [[ $INCLUDE_VIDEO -eq 1 ]]; then
+    EXTENSIONS+=("${EXT_VIDEO[@]}")
+  fi
+  if [[ $INCLUDE_AUDIO -eq 1 ]]; then
+    EXTENSIONS+=("${EXT_AUDIO[@]}")
+  fi
+
+  if [[ ${#EXTENSIONS[@]} -eq 0 ]]; then
+    log_error "No media types selected. Everything excluded?"
     exit 1
   fi
 

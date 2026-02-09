@@ -38,6 +38,7 @@ MedArch is a robust Bash script designed to archive media files from a source di
 | Flag | Description |
 |------|-------------|
 | `-s`, `--skip-duplicates` | Skip copying if a file with the same name and size exists in the destination. |
+| `-e`, `--exclude-type` | Exclude specific media type from archiving (photo, video, sound). |
 | `-m`, `--min-size` | Only archive files larger than specified size (e.g., 10M, 500k). |
 | `-M`, `--max-size` | Only archive files smaller than specified size (e.g., 1G). |
 | `-n`, `--dry-run` | Simulate the operation without copying any files. |
@@ -50,6 +51,12 @@ MedArch is a robust Bash script designed to archive media files from a source di
 Copy all media from SD card to local storage.
 ```bash
 ./medarch.sh /media/sdcard/DCIM ~/Pictures/2023-Trip
+```
+
+**Exclude Specific Media Types:**
+Archive only photos, skipping all video files.
+```bash
+./medarch.sh --exclude-type video ~/Camera ~/Photos
 ```
 
 **Filter by Size:**
