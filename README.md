@@ -5,6 +5,7 @@ MedArch is a robust Bash script designed to archive media files from a source di
 ## Features
 
 - **Smart Archiving**: Recursively scans for common image and video formats.
+- **Directory Structure**: Preserves the source directory structure by default.
 - **Duplicate Handling**: 
   - Automatically renames colliding filenames (e.g., `image.jpg` -> `image(1).jpg`).
   - Optionally skips files if content is identical (same name and size).
@@ -37,6 +38,7 @@ MedArch is a robust Bash script designed to archive media files from a source di
 
 | Flag | Description |
 |------|-------------|
+| `-f`, `--flatten` | Flatten directory structure (copy all files to root of the destination). |
 | `-s`, `--skip-duplicates` | Skip copying if a file with the same name and size exists in the destination. |
 | `-e`, `--exclude-type` | Exclude specific media type from archiving (photo, video, sound). |
 | `-m`, `--min-size` | Only archive files larger than specified size (e.g., 10M, 500k). |
@@ -47,10 +49,16 @@ MedArch is a robust Bash script designed to archive media files from a source di
 
 ### Examples
 
-**Basic Archive:**
-Copy all media from SD card to local storage.
+**Basic Archive (Structure Preserved):**
+Copy all media from SD card to local storage, keeping folder hierarchy.
 ```bash
 ./medarch.sh /media/sdcard/DCIM ~/Pictures/2023-Trip
+```
+
+**Flat Archive:**
+Copy all files into a single directory, ignoring original folders.
+```bash
+./medarch.sh --flatten /media/sdcard/DCIM ~/Pictures/All-In-One
 ```
 
 **Exclude Specific Media Types:**

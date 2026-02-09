@@ -26,6 +26,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Default behavior
+PRESERVE_STRUCTURE=1
 SKIP_DUPLICATES=0
 DRY_RUN=0
 VERBOSE=0
@@ -53,6 +54,7 @@ Usage: $APP_NAME [OPTIONS] source_dir destination_dir
 Archives media files from source_dir to destination_dir.
 
 Options:
+  -f, --flatten          Flatten directory structure (copy all files to root of destination).
   -s, --skip-duplicates  Skip files if a file with the same name and size exists in destination.
   -e, --exclude-type TYPE Exclude specific media type (photo, video, sound). Can be used multiple times.
   -m, --min-size SIZE    Only archive files larger than SIZE. (e.g., 10M, 500k)
@@ -96,6 +98,10 @@ main() {
   # Parse arguments
   while [[ $# -gt 0 ]]; do
     case "$1" in
+      -f|--flatten)
+        PRESERVE_STRUCTURE=0
+        shift
+        ;;
       -s|--skip-duplicates)
         SKIP_DUPLICATES=1
         shift
@@ -202,6 +208,10 @@ main() {
     exit 1
   fi
 
+  # Resolve to absolute paths for reliable processing
+  src_dir=$(realpath "$src_dir")
+  dest_dir=$(realpath "$dest_dir")
+
   # Create destination if it doesn't exist (unless dry run)
   if [[ ! -d "$dest_dir" ]]; then
     if [[ $DRY_RUN -eq 0 ]]; then
@@ -273,7 +283,31 @@ main() {
     base_name=$(basename "$file")
     local name="${base_name%.*}"
     local ext="${base_name##*.}"
-    local dest_file="$dest_dir/$base_name"
+    local dest_file=""
+    local sub_dir=""
+
+    if [[ $PRESERVE_STRUCTURE -eq 1 ]]; then
+      # Calculate relative path from src_dir
+      # remove src_dir prefix from file path to get relative path
+      # ensuring to remove leading slash if present
+      local rel_path="${file#$src_dir/}"
+      sub_dir=$(dirname "$rel_path")
+      
+      # Determine destination directory
+      local target_dir="$dest_dir/$sub_dir"
+      
+      # Create subfolder if needed
+      if [[ ! -d "$target_dir" ]]; then
+        if [[ $DRY_RUN -eq 0 ]]; then
+             mkdir -p "$target_dir"
+        elif [[ $VERBOSE -eq 1 ]]; then
+             log_info "Would create subdirectory: $target_dir"
+        fi
+      fi
+      dest_file="$target_dir/$base_name"
+    else
+      dest_file="$dest_dir/$base_name"
+    fi
 
     # Check for duplicates if requested
     if [[ $SKIP_DUPLICATES -eq 1 && -e "$dest_file" ]]; then
@@ -295,8 +329,15 @@ main() {
 
     # Handle name collisions
     local counter=1
+    # We need to recalculate dir and base in case dest_file changes
+    # But dest_file already includes the correct path (flattened or structured)
+    
+    # Store the original destination path components
+    local dest_dir_path
+    dest_dir_path=$(dirname "$dest_file")
+    
     while [[ -e "$dest_file" ]]; do
-      dest_file="$dest_dir/${name}(${counter}).${ext}"
+      dest_file="$dest_dir_path/${name}(${counter}).${ext}"
       counter=$((counter + 1))
     done
 
