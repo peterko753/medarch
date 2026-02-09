@@ -29,6 +29,8 @@ NC='\033[0m' # No Color
 SKIP_DUPLICATES=0
 DRY_RUN=0
 VERBOSE=0
+MIN_SIZE=""
+MAX_SIZE=""
 
 # Supported Extensions
 EXTENSIONS=(
@@ -49,6 +51,8 @@ Archives media files from source_dir to destination_dir.
 
 Options:
   -s, --skip-duplicates  Skip files if a file with the same name and size exists in destination.
+  -m, --min-size SIZE    Only archive files larger than SIZE. (e.g., 10M, 500k)
+  -M, --max-size SIZE    Only archive files smaller than SIZE. (e.g., 1G)
   -n, --dry-run          Show what would be done without actually copying files.
   -v, --verbose          Enable verbose output.
   -h, --help             Show this help message and exit.
@@ -56,7 +60,7 @@ Options:
 
 Examples:
   $APP_NAME /path/to/camera /path/to/archive
-  $APP_NAME --skip-duplicates ~/Downloads ~/Media
+  $APP_NAME --min-size 1M --skip-duplicates ~/Downloads ~/Media
 EOF
 }
 
@@ -90,6 +94,26 @@ main() {
       -s|--skip-duplicates)
         SKIP_DUPLICATES=1
         shift
+        ;;
+      -m|--min-size)
+        if [[ -n "${2:-}" && ${2:0:1} != "-" ]]; then
+          MIN_SIZE="$2"
+          shift 2
+        else
+          log_error "Error: Argument for $1 is missing."
+          usage
+          exit 1
+        fi
+        ;;
+      -M|--max-size)
+        if [[ -n "${2:-}" && ${2:0:1} != "-" ]]; then
+          MAX_SIZE="$2"
+          shift 2
+        else
+          log_error "Error: Argument for $1 is missing."
+          usage
+          exit 1
+        fi
         ;;
       -n|--dry-run)
         DRY_RUN=1
@@ -161,13 +185,28 @@ main() {
     fi
   done
   
-  # Full find command construction
-  # We use process substitution with a null delimiter to safely handle filenames with spaces/newlines
-  # However, for counting, we'll run a separate find command first.
+  # Wrap extensions in parens
+  local ext_filter=( \( "${find_args[@]}" \) )
   
+  # Add size filters if specified
+  # Note: `find` expects size suffixes like k, M, G to be case-sensitive or specific.
+  # k = kilobytes, M = megabytes, G = gigabytes.
+  # We should probably pass the user input directly if they use correct find syntax, or normalize it.
+  # For now, assuming user knows find syntax or follows prompt instructions.
+  
+  local size_filter=()
+  if [[ -n "$MIN_SIZE" ]]; then
+     size_filter+=( -size "+$MIN_SIZE" )
+  fi
+  if [[ -n "$MAX_SIZE" ]]; then
+     size_filter+=( -size "-$MAX_SIZE" )
+  fi
+
   log_info "Scanning for media files in: $src_dir"
-  
-  local file_list_cmd=(find "$src_dir" -type f \( "${find_args[@]}" \))
+  if [[ -n "$MIN_SIZE" ]]; then log_info "Filter: Min Size > $MIN_SIZE"; fi
+  if [[ -n "$MAX_SIZE" ]]; then log_info "Filter: Max Size < $MAX_SIZE"; fi
+
+  local file_list_cmd=(find "$src_dir" -type f "${ext_filter[@]}" "${size_filter[@]}")
   
   # Count total files
   local total_files
