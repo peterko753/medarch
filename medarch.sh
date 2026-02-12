@@ -208,9 +208,8 @@ main() {
     exit 1
   fi
 
-  # Resolve to absolute paths for reliable processing
+  # Resolve source to absolute path
   src_dir=$(realpath "$src_dir")
-  dest_dir=$(realpath "$dest_dir")
 
   # Create destination if it doesn't exist (unless dry run)
   if [[ ! -d "$dest_dir" ]]; then
@@ -220,6 +219,14 @@ main() {
     else
       log_info "Would create destination directory: $dest_dir"
     fi
+  fi
+
+  # Resolve dest to absolute path (after mkdir so it exists for realpath)
+  if [[ $DRY_RUN -eq 0 ]]; then
+    dest_dir=$(realpath "$dest_dir")
+  else
+    # In dry-run the dir may not exist; use readlink -m which doesn't require existence
+    dest_dir=$(readlink -m "$dest_dir")
   fi
 
   # Build find arguments
@@ -257,9 +264,9 @@ main() {
 
   local file_list_cmd=(find "$src_dir" -type f "${ext_filter[@]}" "${size_filter[@]}")
   
-  # Count total files
+  # Count total files (using -print0 and tr to handle filenames with newlines)
   local total_files
-  if ! total_files=$("${file_list_cmd[@]}" | wc -l); then
+  if ! total_files=$("${file_list_cmd[@]}" -print0 | tr -dc '\0' | wc -c); then
     log_error "Failed to scan source directory."
     exit 1
   fi
@@ -289,13 +296,16 @@ main() {
 
     if [[ $PRESERVE_STRUCTURE -eq 1 ]]; then
       # Calculate relative path from src_dir
-      # remove src_dir prefix from file path to get relative path
-      # ensuring to remove leading slash if present
-      local rel_path="${file#$src_dir/}"
+      local rel_path="${file#"$src_dir"/}"
       sub_dir=$(dirname "$rel_path")
       
-      # Determine destination directory
-      local target_dir="$dest_dir/$sub_dir"
+      # Normalize: if file is at source root, dirname returns "."
+      local target_dir
+      if [[ "$sub_dir" == "." ]]; then
+        target_dir="$dest_dir"
+      else
+        target_dir="$dest_dir/$sub_dir"
+      fi
       
       # Create subfolder if needed
       if [[ ! -d "$target_dir" ]]; then
@@ -312,10 +322,9 @@ main() {
 
     # Check for duplicates if requested
     if [[ $SKIP_DUPLICATES -eq 1 && -e "$dest_file" ]]; then
-      local src_size
-      src_size=$(stat -c %s -- "$file" || echo 0)
-      local dst_size
-      dst_size=$(stat -c %s -- "$dest_file" || echo 0)
+      local src_size dst_size
+      src_size=$(stat -c %s -- "$file" 2>/dev/null) || src_size=0
+      dst_size=$(stat -c %s -- "$dest_file" 2>/dev/null) || dst_size=0
       
       if [[ "$src_size" -eq "$dst_size" && "$src_size" -gt 0 ]]; then
         skipped=$((skipped + 1))
